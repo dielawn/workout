@@ -12,11 +12,15 @@ const TraineeComponent = () => {
     const [selectedExercise, setSelectedExercise] = useState('');
     const [setReps, setSetReps] = useState('');
     const [setWeight, setSetWeight] = useState('');
+    const [selectedWorkoutForDetail, setSelectedWorkoutForDetail] = useState(null);
+    const [showWorkoutModal, setShowWorkoutModal] = useState(false);
+ 
 
     // Load trainees from localStorage on component mount
     useEffect(() => {
         loadTraineesFromStorage();
         console.log('TraineeComponent loaded');
+        
     }, []);
 
     // Save trainees to localStorage whenever trainees state changes
@@ -138,6 +142,124 @@ const TraineeComponent = () => {
     const getExerciseOptions = () => {
         const exercises = getCurrentExercises();
         return exercises.filter(ex => !ex.completed);
+    };
+
+        const WorkoutDetailModal = ({ workout, onClose }) => {
+        if (!workout) return null;
+        
+        const getWorkoutDetails = (workout) => {
+            const exerciseDetails = workout.exercises?.map(exerciseInstance => ({
+                name: exerciseInstance.exercise.name,
+                type: exerciseInstance.exercise.type,
+                description: exerciseInstance.exercise.description,
+                completed: exerciseInstance.completed,
+                sets: exerciseInstance.sets || [],
+                totalVolume: exerciseInstance.sets?.reduce((total, set) => total + (set.reps * set.weight), 0) || 0,
+                maxWeight: exerciseInstance.sets?.length > 0 ? Math.max(...exerciseInstance.sets.map(s => s.weight)) : 0
+            })) || [];
+            
+            return {
+                sessionInfo: {
+                    name: workout.name,
+                    type: workout.type,
+                    duration: workout.duration,
+                    date: new Date(workout.startTime || workout.endTime).toLocaleDateString(),
+                    notes: workout.notes || ''
+                },
+                stats: {
+                    totalVolume: exerciseDetails.reduce((total, ex) => total + ex.totalVolume, 0),
+                    totalSets: exerciseDetails.reduce((total, ex) => total + ex.sets.length, 0),
+                    completedExercises: exerciseDetails.filter(ex => ex.completed).length
+                },
+                exercises: exerciseDetails
+            };
+        };
+        
+        const details = getWorkoutDetails(workout);
+        
+        return (
+            <div className="modal-overlay" onClick={onClose}>
+                <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-header">
+                        <h2>{details.sessionInfo.name}</h2>
+                        <button className="modal-close" onClick={onClose}>×</button>
+                    </div>
+                    
+                    <div className="modal-body">
+                        <div className="workout-summary-stats">
+                            <div className="summary-stat">
+                                <span className="stat-label">Duration</span>
+                                <span className="stat-value">{details.sessionInfo.duration} min</span>
+                            </div>
+                            <div className="summary-stat">
+                                <span className="stat-label">Total Volume</span>
+                                <span className="stat-value">{details.stats.totalVolume} lbs</span>
+                            </div>
+                            <div className="summary-stat">
+                                <span className="stat-label">Total Sets</span>
+                                <span className="stat-value">{details.stats.totalSets}</span>
+                            </div>
+                            <div className="summary-stat">
+                                <span className="stat-label">Completed</span>
+                                <span className="stat-value">{details.stats.completedExercises}/{details.exercises.length}</span>
+                            </div>
+                        </div>
+                        
+                        <div className="exercises-detail">
+                            <h3>Exercise Details</h3>
+                            {details.exercises.map((exercise, index) => (
+                                <div key={index} className="exercise-detail-card">
+                                    <div className="exercise-detail-header">
+                                        <h4>{exercise.name} {exercise.completed ? '✅' : '⏳'}</h4>
+                                        <span className="exercise-type-badge">{exercise.type}</span>
+                                    </div>
+                                    
+                                    <p className="exercise-description">{exercise.description}</p>
+                                    
+                                    <div className="exercise-stats">
+                                        <span>Sets: {exercise.sets.length}</span>
+                                        <span>Volume: {exercise.totalVolume} lbs</span>
+                                        <span>Max Weight: {exercise.maxWeight} lbs</span>
+                                    </div>
+                                    
+                                    {exercise.sets.length > 0 && (
+                                        <div className="sets-breakdown">
+                                            <h5>Sets:</h5>
+                                            <div className="sets-grid">
+                                                {exercise.sets.map((set, setIndex) => (
+                                                    <div key={setIndex} className="set-detail">
+                                                        <span className="set-number">#{setIndex + 1}</span>
+                                                        <span className="set-info">{set.reps} reps × {set.weight} lbs</span>
+                                                        <span className="set-volume">= {set.reps * set.weight} lbs</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {details.sessionInfo.notes && (
+                            <div className="workout-notes">
+                                <h4>Notes:</h4>
+                                <p>{details.sessionInfo.notes}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+    const viewWorkoutDetails = (workout) => {
+        console.log('Viewing detailed workout:', workout);
+        setSelectedWorkoutForDetail(workout);
+        setShowWorkoutModal(true);
+    };
+
+    const closeWorkoutModal = () => {
+        setShowWorkoutModal(false);
+        setSelectedWorkoutForDetail(null);
     };
 
     return (
@@ -393,9 +515,18 @@ const TraineeComponent = () => {
                                                 <h5>{workout.name}</h5>
                                                 <p>{workout.duration} min • {workout.exercises?.length || 0} exercises</p>
                                             </div>
-                                            <span className="workout-date">
-                                                {new Date(workout.startTime).toLocaleDateString()}
-                                            </span>
+                                            <div className="workout-actions">
+                                                <span className="workout-date">
+                                                    {new Date(workout.startTime).toLocaleDateString()}
+                                                </span>
+                                                <button 
+                                                    className="btn-primary btn-small"
+                                                    onClick={() => viewWorkoutDetails(workout)}
+                                                    style={{ marginLeft: '10px' }}
+                                                >
+                                                    View Details
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -403,7 +534,7 @@ const TraineeComponent = () => {
                         </div>
 
                         <div className="section personal-records">
-                            <h3>Personal Records</h3>
+                            <h3>Max Weight</h3>
                             {currentTrainee.personalRecords.size === 0 ? (
                                 <p>Complete more workouts to set personal records!</p>
                             ) : (
@@ -414,8 +545,8 @@ const TraineeComponent = () => {
                                         .map(([key, value], index) => {
                                             const exerciseName = key.replace('_weight', '');
                                             return (
-                                                <div key={index} className="record-item">
-                                                    <span className="record-exercise">{exerciseName}</span>
+                                                <div key={index} className="record-item flex">
+                                                    <span className="record-exercise">{exerciseName} </span>
                                                     <span className="record-value">{value}lbs</span>
                                                 </div>
                                             );
@@ -432,13 +563,15 @@ const TraineeComponent = () => {
                                     onClick={() => {
                                         const lastWorkout = currentTrainee.pastWorkouts[currentTrainee.pastWorkouts.length - 1];
                                         if (lastWorkout) {
-                                            console.log('Last workout summary:', lastWorkout.getSummary?.() || 'No summary available');
+                                            viewWorkoutDetails(lastWorkout);
+                                        } else {
+                                            console.log('No workouts found');
                                         }
                                     }}
                                 >
-                                    View Last Workout
+                                    View Last Workout Details
                                 </button>
-                                
+                                                                
                                 <button 
                                     className="btn-secondary"
                                     onClick={() => {
@@ -550,6 +683,12 @@ const TraineeComponent = () => {
                     Export Data
                 </button>
             </div>
+            {showWorkoutModal && (
+                <WorkoutDetailModal 
+                    workout={selectedWorkoutForDetail} 
+                    onClose={closeWorkoutModal} 
+                />
+            )}
         </div>
     )
 }

@@ -109,6 +109,79 @@ class Session {
         const completed = this.exercises.filter(ex => ex.completed).length;
         return Math.round((completed / this.exercises.length) * 100);
     }
+        // Enhanced summary with exercise details
+    getDetailedSummary() {
+        const exerciseDetails = this.exercises.map(exerciseInstance => {
+            const sets = exerciseInstance.sets.map(set => ({
+                reps: set.reps,
+                weight: set.weight,
+                timestamp: set.timestamp
+            }));
+            
+            return {
+                name: exerciseInstance.exercise.name,
+                type: exerciseInstance.exercise.type,
+                description: exerciseInstance.exercise.description,
+                completed: exerciseInstance.completed,
+                sets: sets,
+                totalVolume: exerciseInstance.getTotalVolume(),
+                totalSets: sets.length,
+                maxWeight: sets.length > 0 ? Math.max(...sets.map(s => s.weight)) : 0,
+                notes: exerciseInstance.notes || ''
+            };
+        });
+        
+        const summary = {
+            sessionInfo: {
+                name: this.name,
+                type: this.type,
+                duration: this.duration,
+                date: this.startTime ? this.startTime.toLocaleDateString() : 'Not started',
+                startTime: this.startTime,
+                endTime: this.endTime,
+                completed: this.completed,
+                notes: this.notes
+            },
+            stats: {
+                totalVolume: this.getTotalVolume(),
+                exerciseCount: this.exercises.length,
+                completionPercentage: this.getCompletionPercentage(),
+                totalSets: this.exercises.reduce((total, ex) => total + ex.sets.length, 0)
+            },
+            exercises: exerciseDetails
+        };
+        
+        console.log('Detailed Session Summary:', summary);
+        return summary;
+    }
+
+    // Method to display workout in a readable format
+    displayWorkoutSummary() {
+        const summary = this.getDetailedSummary();
+        
+        console.log(`\n=== ${summary.sessionInfo.name} ===`);
+        console.log(`Type: ${summary.sessionInfo.type}`);
+        console.log(`Date: ${summary.sessionInfo.date}`);
+        console.log(`Duration: ${summary.stats.duration} minutes`);
+        console.log(`Total Volume: ${summary.stats.totalVolume} lbs`);
+        console.log(`Completion: ${summary.stats.completionPercentage}%`);
+        console.log(`\nExercises (${summary.exercises.length}):`);
+        
+        summary.exercises.forEach((exercise, index) => {
+            console.log(`\n${index + 1}. ${exercise.name} ${exercise.completed ? '✅' : '⏳'}`);
+            console.log(`   Type: ${exercise.type}`);
+            console.log(`   Sets: ${exercise.totalSets} | Volume: ${exercise.totalVolume} lbs | Max: ${exercise.maxWeight} lbs`);
+            
+            if (exercise.sets.length > 0) {
+                console.log(`   Set Details:`);
+                exercise.sets.forEach((set, setIndex) => {
+                    console.log(`     Set ${setIndex + 1}: ${set.reps} reps × ${set.weight} lbs`);
+                });
+            }
+        });
+        
+        return summary;
+    }
     
     getSummary() {
         const summary = {
