@@ -9,7 +9,6 @@ const TraineeComponent = () => {
     const [newTraineeName, setNewTraineeName] = useState('');
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [selectedWorkoutType, setSelectedWorkoutType] = useState('Upper body');
-    const [selectedExercise, setSelectedExercise] = useState('');
     const [setReps, setSetReps] = useState('');
     const [setWeight, setSetWeight] = useState('');
     const [selectedWorkoutForDetail, setSelectedWorkoutForDetail] = useState(null);
@@ -95,15 +94,11 @@ const TraineeComponent = () => {
         }
     };
 
-    const addSet = () => {
-        if (currentTrainee && selectedExercise && setReps) {
-            const reps = parseInt(setReps);
-            const weight = parseFloat(setWeight) || 0;
-            currentTrainee.addSetToExercise(selectedExercise, reps, weight);
+    const addSetToExercise = (exerciseName, reps, weight = 0) => {
+        if (currentTrainee && currentTrainee.currentSession) {
+            currentTrainee.addSetToExercise(exerciseName, reps, weight);
             updateTraineeInState(currentTrainee);
-            setSetReps('');
-            setSetWeight('');
-            console.log(`Added set: ${reps} reps @ ${weight}lbs for ${selectedExercise}`);
+            console.log(`Added set: ${reps} reps @ ${weight}lbs for ${exerciseName}`);
         }
     };
 
@@ -137,11 +132,6 @@ const TraineeComponent = () => {
 
     const getCurrentExercises = () => {
         return currentTrainee?.currentSession?.exercises || [];
-    };
-
-    const getExerciseOptions = () => {
-        const exercises = getCurrentExercises();
-        return exercises.filter(ex => !ex.completed);
     };
 
         const WorkoutDetailModal = ({ workout, onClose }) => {
@@ -413,12 +403,45 @@ const TraineeComponent = () => {
                                                 )}
                                                 
                                                 {!exerciseInstance.completed && (
-                                                    <button 
-                                                        className="btn-success btn-small"
-                                                        onClick={() => completeExercise(exerciseInstance.exercise.name)}
-                                                    >
-                                                        Mark Complete
-                                                    </button>
+                                                    <div className="exercise-controls">
+                                                        <div className="add-set-inline">
+                                                            <div className="inline-inputs">
+                                                                <input
+                                                                    type="number"
+                                                                    placeholder="Reps"
+                                                                    value={setReps}
+                                                                    onChange={(e) => setSetReps(e.target.value)}
+                                                                    className="inline-input"
+                                                                />
+                                                                <input
+                                                                    type="number"
+                                                                    placeholder="Weight"
+                                                                    value={setWeight}
+                                                                    onChange={(e) => setSetWeight(e.target.value)}
+                                                                    className="inline-input"
+                                                                />
+                                                                <button 
+                                                                    className="btn-primary btn-small"
+                                                                    onClick={() => {
+                                                                        if (setReps) {
+                                                                            addSetToExercise(exerciseInstance.exercise.name, parseInt(setReps), parseFloat(setWeight) || 0);
+                                                                            setSetReps('');
+                                                                            setSetWeight('');
+                                                                        }
+                                                                    }}
+                                                                    disabled={!setReps}
+                                                                >
+                                                                    Add Set
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <button 
+                                                            className="btn-success btn-small"
+                                                            onClick={() => completeExercise(exerciseInstance.exercise.name)}
+                                                        >
+                                                            Mark Complete
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </div>
                                         ))}
@@ -433,55 +456,6 @@ const TraineeComponent = () => {
                                 </div>
                             )}
                         </div>
-
-                        {currentTrainee.currentSession && (
-                            <div className="section add-sets">
-                                <h3>Add Set</h3>
-                                <div className="form-group">
-                                    <label>Exercise:</label>
-                                    <select 
-                                        value={selectedExercise}
-                                        onChange={(e) => setSelectedExercise(e.target.value)}
-                                    >
-                                        <option value="">Select exercise...</option>
-                                        {getExerciseOptions().map((ex, index) => (
-                                            <option key={index} value={ex.exercise.name}>
-                                                {ex.exercise.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label>Reps:</label>
-                                        <input
-                                            type="number"
-                                            placeholder="12"
-                                            value={setReps}
-                                            onChange={(e) => setSetReps(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Weight (lbs):</label>
-                                        <input
-                                            type="number"
-                                            placeholder="20"
-                                            value={setWeight}
-                                            onChange={(e) => setSetWeight(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                                
-                                <button 
-                                    className="btn-primary"
-                                    onClick={addSet}
-                                    disabled={!selectedExercise || !setReps}
-                                >
-                                    Add Set
-                                </button>
-                            </div>
-                        )}
 
                         <div className="section stats">
                             <h3>Your Stats</h3>
@@ -534,23 +508,29 @@ const TraineeComponent = () => {
                         </div>
 
                         <div className="section personal-records">
-                            <h3>Max Weight</h3>
+                            <h3>Max Weight PRs</h3>
                             {currentTrainee.personalRecords.size === 0 ? (
                                 <p>Complete more workouts to set personal records!</p>
                             ) : (
                                 <div className="records-list">
-                                    {Array.from(currentTrainee.personalRecords.entries())
-                                        .filter(([key]) => key.includes('_weight'))
-                                        .slice(0, 5)
-                                        .map(([key, value], index) => {
+                                    {(() => {
+                                        const weightRecords = Array.from(currentTrainee.personalRecords.entries())
+                                            .filter(([key]) => key.includes('_weight'))
+                                            .sort((a, b) => b[1] - a[1]) // Sort by weight value, highest first
+                                            ; // Show top 8 instead of 5
+                                        
+                                        console.log('Top weight records (sorted):', weightRecords);
+                                        
+                                        return weightRecords.map(([key, value], index) => {
                                             const exerciseName = key.replace('_weight', '');
                                             return (
-                                                <div key={index} className="record-item flex">
-                                                    <span className="record-exercise">{exerciseName} </span>
+                                                <div key={index} className="record-item">
+                                                    <span className="record-exercise">{exerciseName}</span>
                                                     <span className="record-value">{value}lbs</span>
                                                 </div>
                                             );
-                                        })}
+                                        });
+                                    })()}
                                 </div>
                             )}
                         </div>
